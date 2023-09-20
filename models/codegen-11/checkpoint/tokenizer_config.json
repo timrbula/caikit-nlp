@@ -1,0 +1,14 @@
+{
+  "add_prefix_space": false,
+  "bos_token": "<|startoftext|>",
+  "clean_up_tokenization_spaces": true,
+  "eos_token": "<|endoftext|>",
+  "max_model_input_sizes": 1e+20,
+  "model_max_length": 1024,
+  "pad_token": "<|pad|>",
+  "padding_side": "right",
+  "sep_token": "<|sepoftext|>",
+  "tokenizer_class": "CodeGenTokenizer",
+  "truncation_side": "left",
+  "unk_token": "<|endoftext|>"
+}

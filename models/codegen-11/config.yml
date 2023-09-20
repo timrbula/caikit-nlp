@@ -1,0 +1,59 @@
+DECODER: decoder.pt
+ENCODER: ''
+base_model_config:
+  activation_function: gelu_new
+  architectures:
+  - CodeGenForCausalLM
+  attn_pdrop: 0.0
+  bos_token_id: 1
+  d_model: 1024
+  embd_pdrop: 0.0
+  eos_token_id: 50256
+  gradient_checkpointing: false
+  initializer_range: 0.02
+  layer_norm_epsilon: 1.0e-05
+  model_type: codegen
+  n_ctx: 2048
+  n_embd: 1024
+  n_head: 16
+  n_inner: null
+  n_layer: 20
+  n_positions: 2048
+  resid_pdrop: 0.0
+  rotary_dim: 32
+  scale_attn_weights: true
+  summary_activation: null
+  summary_first_dropout: 0.1
+  summary_proj_to_labels: true
+  summary_type: cls_index
+  summary_use_proj: true
+  task_specific_params:
+    text-generation:
+      do_sample: true
+      max_length: 50
+      temperature: 1.0
+  tie_word_embeddings: false
+  tokenizer_class: GPT2Tokenizer
+  torch_dtype: float32
+  transformers_version: 4.33.2
+  use_cache: false
+  vocab_size: 51200
+base_model_name: checkpoint
+caikit_nlp_version: 0.0.1
+created: '2023-09-20 12:07:22.721597'
+eos_token: <|endoftext|>
+full_model_path: ./checkpoint
+has_base_model: true
+module_class: caikit_nlp.modules.text_generation.peft_prompt_tuning.PeftPromptTuning
+module_id: 6655831b-960a-4dc5-8df4-867026e2cd41
+name: Peft generation
+output_model_types: '["DECODER"]'
+saved: '2023-09-20 12:07:22.721614'
+task_type: CAUSAL_LM
+tokenizer_path: ./checkpoint
+tracking_id: 652a1c1c-ae97-4d6c-81c1-a28999b84df2
+trained_torch_dtype: float32
+training_logs: training_logs.jsonl
+tuning_type: MULTITASK_PROMPT_TUNING
+verbalizer: '{{input}}'
+version: 0.1.0
