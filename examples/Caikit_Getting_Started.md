@@ -16,7 +16,7 @@
 
 ## Run PEFT tuning
 
-The following command executes the MPT against a local
+The following command executes MPT against a local model and dataset
 
 ```sh
 python examples/run_peft_tuning.py MULTITASK_PROMPT_TUNING \
@@ -35,7 +35,20 @@ python examples/run_peft_tuning.py MULTITASK_PROMPT_TUNING \
 
 > Reference [Caikit Getting Started Notebook](Caikit_Getting_Started.ipynb) for more information on the parameters
 
-### Execute on CCC with GPU
+
+## Run PEFT evaluation
+
+The following command executes evaluation against a local model and dataset
+
+```sh
+python examples/evaluate_model.py \
+--model_path <path_to_model_checkpoint> \
+--dataset "json_file" \
+--json_file_path <path_to_peft_data>
+--metrics rouge
+```
+
+## Execute on CCC with GPU
 
 Example `jbsub` command to submit with the following config:
 
