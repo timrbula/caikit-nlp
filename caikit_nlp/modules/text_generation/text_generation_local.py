@@ -14,8 +14,9 @@
 
 
 # Standard
-from typing import Optional, Union
+from typing import Any, Dict, Optional, Union
 import gc
+import json
 import os
 import tempfile
 
@@ -28,8 +29,8 @@ import torch
 # First Party
 from caikit import get_config
 from caikit.core.data_model import DataStream
+from caikit.core.exceptions import error_handler
 from caikit.core.modules import ModuleBase, ModuleConfig, ModuleSaver, module
-from caikit.core.toolkit import error_handler
 from caikit.interfaces.nlp.data_model import GeneratedTextResult
 from caikit.interfaces.nlp.tasks import TextGenerationTask
 import alog
@@ -51,6 +52,8 @@ from ...toolkit.torch_run import get_torch_elastic_launch_config
 log = alog.use_channel("TXT_GEN")
 error = error_handler.get(log)
 
+
+TRAINING_LOSS_LOG_FILENAME = "training_logs.jsonl"
 
 # pylint: disable=too-many-lines,too-many-instance-attributes
 @module(
@@ -95,6 +98,7 @@ class TextGeneration(ModuleBase):
         sep_token: Optional[str] = None,
         eos_token: Optional[str] = None,
         pad_token: Optional[str] = None,
+        training_metadata: Union[Dict[str, Any], None] = None,
     ):
         super().__init__()
 
@@ -106,6 +110,9 @@ class TextGeneration(ModuleBase):
         self._sep_token = sep_token
         self._eos_token = eos_token
         self._pad_token = pad_token
+        self.training_metadata = (
+            training_metadata if training_metadata is not None else {}
+        )
 
     # pylint: disable=duplicate-code
     def __del__(self):
@@ -217,6 +224,9 @@ class TextGeneration(ModuleBase):
             TextGeneration
                 Instance of this class with fine-tuned models.
         """
+        error.value_check(
+            "<NLP96406893E>", len(train_stream) > 0, "train_stream cannot be empty"
+        )
 
         torch_dtype = get_torch_dtype(torch_dtype)
 
@@ -354,11 +364,13 @@ class TextGeneration(ModuleBase):
                 "weight_decay": 0.01,
                 "save_total_limit": 3,
                 "push_to_hub": False,
-                "no_cuda": not torch.cuda.is_available(),  # Default
+                "use_cpu": not torch.cuda.is_available(),  # Default
                 "remove_unused_columns": True,
                 "dataloader_pin_memory": False,
                 "gradient_accumulation_steps": accumulate_steps,
                 "gradient_checkpointing": True,
+                "logging_strategy": "steps",
+                "logging_steps": 1,  # logging at every step
                 # NOTE: This is explicitly set to false since it will
                 # negatively impact the performance
                 "full_determinism": False,
@@ -395,11 +407,16 @@ class TextGeneration(ModuleBase):
                 # NOTE: torch distributed can hang if run on CPUs,
                 # to avoid that, specially for unit tests, we are only
                 # running below when GPUs are available
-                torch.distributed.launcher.api.elastic_launch(
+                training_loss_history = torch.distributed.launcher.api.elastic_launch(
                     launch_config, cls._launch_training
                 )(base_model, training_dataset, training_args, checkpoint_dir)
+
+                # NOTE: We are currently only storing the loss information from
+                # rank 0, i.e main process. training_loss_history is dictionary containing
+                # rank of the process as key
+                training_loss_history = training_loss_history[0]
             else:
-                cls._launch_training(
+                training_loss_history = cls._launch_training(
                     base_model, training_dataset, training_args, checkpoint_dir
                 )
 
@@ -423,6 +440,7 @@ class TextGeneration(ModuleBase):
             sep_token=model.tokenizer.sep_token or None,
             eos_token=model.tokenizer.eos_token or None,
             pad_token=model.tokenizer.pad_token or None,
+            training_metadata={"loss": training_loss_history},
         )
 
     @classmethod
@@ -485,6 +503,24 @@ class TextGeneration(ModuleBase):
                     base_model_dirname=artifacts_dir,
                 )
 
+            training_loss_filename = TRAINING_LOSS_LOG_FILENAME
+
+            saver.update_config({"training_logs": training_loss_filename})
+
+            # We are currently only saving logs containing loss in jsonl format
+            if "loss" in self.training_metadata:
+                loss_log_lines = self.training_metadata.get("loss")
+                error.type_check("<NLP60269855E>", list, loss_log_lines=loss_log_lines)
+                with open(
+                    os.path.join(model_path, training_loss_filename),
+                    "w",
+                    encoding="utf-8",
+                ) as f:
+                    for loss_log in loss_log_lines:
+                        loss_log = {"name": "loss", "data": loss_log}
+                        json.dump(loss_log, f)
+                        f.write("\n")
+
     def run(
         self,
         text: str,
@@ -492,11 +528,11 @@ class TextGeneration(ModuleBase):
         min_new_tokens: Optional[int] = 0,
         truncate_input_tokens: Optional[int] = 0,
         decoding_method: Optional[str] = "GREEDY",
-        top_k: Optional[int] = 0,
-        top_p: Optional[float] = 0.0,
-        typical_p: Optional[float] = 0.0,
-        temperature: Optional[float] = 1.0,
-        repetition_penalty: Optional[float] = 0.0,
+        top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+        typical_p: Optional[float] = None,
+        temperature: Optional[float] = None,
+        repetition_penalty: Optional[float] = None,
         max_time: Optional[float] = None,
         **kwargs,
     ) -> GeneratedTextResult:
@@ -560,7 +596,7 @@ class TextGeneration(ModuleBase):
         mapped_dataset = dataset.map(
             base_model.tokenize_function,
             fn_kwargs=fn_kwargs,
-            batched=base_model.REQUIRES_TOKEN_UNWRAPPING,
+            batched=False,
             # Drop the input / output columns; we need to do this for dimensions to play
             # happily when operating on batched inputs for causal language modeling.
             remove_columns=["input", "output"],
@@ -595,6 +631,10 @@ class TextGeneration(ModuleBase):
 
         # save tokenizer explicitly
         base_model.tokenizer.save_pretrained(checkpoint_dir)
+
+        # Below will return log history but launch will automatically attach rank to it.
+        # if started in distributed fashion
+        return trainer.state.log_history
 
     @staticmethod
     def infer_max_steps(

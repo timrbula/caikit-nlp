@@ -17,7 +17,7 @@
 from typing import Iterable
 
 # First Party
-from caikit.core.toolkit import error_handler
+from caikit.core.exceptions import error_handler
 from caikit.interfaces.nlp.data_model import (
     GeneratedTextResult,
     GeneratedTextStreamResult,
@@ -75,10 +75,14 @@ def validate_inf_params(
     error.type_check("<NLP65883537E>", bool, preserve_input_text=preserve_input_text)
     error.type_check("<NLP85452188E>", str, allow_none=True, eos_token=eos_token)
     error.type_check(
-        "<NLP03860681E>", int, allow_none=True, max_new_tokens=max_new_tokens
-    )
-    error.type_check(
-        "<NLP30091277E>", int, allow_none=True, min_new_tokens=min_new_tokens
+        "<NLP03860681E>",
+        int,
+        allow_none=True,
+        max_new_tokens=max_new_tokens,
+        min_new_tokens=min_new_tokens,
+        truncate_input_tokens=truncate_input_tokens,
+        top_k=top_k,
+        seed=seed,
     )
 
     error.value_check(
@@ -88,28 +92,22 @@ def validate_inf_params(
         [{min_new_tokens}]",
     )
 
-    error.type_check(
-        "<NLP55411552E>",
-        int,
-        allow_none=True,
-        truncate_input_tokens=truncate_input_tokens,
-    )
-
     error.value_check(
         "<NLP03521363E>",
         decoding_method in VALID_DECODING_METHODS,
         f"Decoding method [{decoding_method}] not in valid decoding methods: "
         f"[{VALID_DECODING_METHODS}]",
     )
-    error.type_check("<NLP84635844E>", int, allow_none=True, top_k=top_k)
-    error.type_check("<NLP55267524E>", float, allow_none=True, top_p=top_p)
-    error.type_check("<NLP13670203E>", float, allow_none=True, typical_p=typical_p)
-    error.type_check("<NLP13670205E>", float, allow_none=True, temperature=temperature)
-    error.type_check("<NLP28185343E>", int, allow_none=True, seed=seed)
     error.type_check(
-        "<NLP11929419E>", float, allow_none=True, repetition_penalty=repetition_penalty
+        "<NLP55267524E>",
+        float,
+        allow_none=True,
+        top_p=top_p,
+        typical_p=typical_p,
+        temperature=temperature,
+        repetition_penalty=repetition_penalty,
+        max_time=max_time,
     )
-    error.type_check("<NLP28185344E>", float, allow_none=True, max_time=max_time)
     error.type_check(
         "<NLP28185345E>",
         ExponentialDecayLengthPenalty,
@@ -122,10 +120,58 @@ def validate_inf_params(
         "<NLP41311584E>", str, allow_none=True, stop_sequences=stop_sequences
     )
 
+    error.value_check(
+        "<NLP28185344E>",
+        not temperature or temperature >= 0.05,
+        "temperature must be >= 0.05",
+    )
+
+    error.value_check(
+        "<NLP28185346E>",
+        not top_p or top_p > 0.0 and top_p <= 1.0,
+        "top_p must be > 0.0 and <= 1.0",
+    )
+
+    error.value_check(
+        "<NLP28185347E>", not top_k or top_k >= 0, "top_k must be strictly positive"
+    )
+
+    error.value_check(
+        "<NLP28185348E>", not typical_p or typical_p <= 1.0, "typical_p must be <= 1.0"
+    )
+
+    error.value_check(
+        "<NLP28185349E>",
+        not repetition_penalty or repetition_penalty > 0.0,
+        "repetition_penalty must be > 0.0",
+    )
+
+    if exponential_decay_length_penalty:
+        if isinstance(exponential_decay_length_penalty, ExponentialDecayLengthPenalty):
+            exponential_decay_length_penalty = (
+                exponential_decay_length_penalty.start_index,
+                exponential_decay_length_penalty.decay_factor,
+            )
+        error.value_check(
+            "<NLP28185350E>",
+            exponential_decay_length_penalty[1] >= 1.0
+            and exponential_decay_length_penalty[1] <= 10.0,
+            "decay_factor in exponential_decay_length_penalty must be >= 1.0 and <= 10.0",
+        )
+
+    if decoding_method == "GREEDY" and (
+        temperature not in (1, None)
+        or top_k not in (0, None)
+        or top_p not in (1, None)
+        or seed
+    ):
+        raise ValueError(
+            "sampling parameters (temperature/top_k/top_p/typical_p/seed) aren't applicable in greedy decoding mode"
+        )
+
 
 def get_params(
     preserve_input_text,
-    eos_token,
     max_new_tokens,
     min_new_tokens,
     truncate_input_tokens,
@@ -143,8 +189,6 @@ def get_params(
     """Get generation parameters
 
     Args:
-        eos_token: str
-           A special token representing the end of a sentence.
         {}
     """.format(
         GENERATE_FUNCTION_TGIS_ARGS
@@ -171,7 +215,7 @@ def get_params(
         token_ranks=True,
     )
     stopping = generation_pb2.StoppingCriteria(
-        stop_sequences=stop_sequences or [eos_token] if eos_token else None,
+        stop_sequences=stop_sequences,
         max_new_tokens=max_new_tokens,
         min_new_tokens=min_new_tokens,
         time_limit_millis=int(max_time * 1000) if max_time else None,
@@ -279,7 +323,6 @@ class TGISGenerationClient:
 
         params = get_params(
             preserve_input_text=preserve_input_text,
-            eos_token=self.eos_token,
             max_new_tokens=max_new_tokens,
             min_new_tokens=min_new_tokens,
             truncate_input_tokens=truncate_input_tokens,
@@ -327,6 +370,7 @@ class TGISGenerationClient:
             finish_reason=response.stop_reason,
             producer_id=self.producer_id,
             input_token_count=response.input_token_count,
+            seed=seed,
         )
 
     def stream_generate(
@@ -388,7 +432,6 @@ class TGISGenerationClient:
 
         params = get_params(
             preserve_input_text=preserve_input_text,
-            eos_token=self.eos_token,
             max_new_tokens=max_new_tokens,
             min_new_tokens=min_new_tokens,
             truncate_input_tokens=truncate_input_tokens,

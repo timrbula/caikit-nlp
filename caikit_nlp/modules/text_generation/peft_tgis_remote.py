@@ -24,8 +24,8 @@ import numpy as np
 # First Party
 from caikit.config import get_config
 from caikit.core import ModuleBase, ModuleConfig, ModuleSaver, modules
+from caikit.core.exceptions import error_handler
 from caikit.core.module_backends import BackendBase, backend_types
-from caikit.core.toolkit import error_handler
 from caikit.interfaces.nlp.data_model import (
     GeneratedTextResult,
     GeneratedTextStreamResult,
@@ -179,22 +179,22 @@ class PeftPromptTuningTGIS(ModuleBase):  # pylint: disable=too-many-instance-att
     def run(
         self,
         text: str,
-        preserve_input_text: bool = False,
         max_new_tokens: Optional[int] = 20,
         min_new_tokens: Optional[int] = 0,
         truncate_input_tokens: Optional[int] = 0,
         decoding_method: Optional[str] = "GREEDY",
-        top_k: Optional[int] = 0,
-        top_p: Optional[float] = 1.0,
-        typical_p: Optional[float] = 1.0,
-        temperature: Optional[float] = 1.0,
+        top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+        typical_p: Optional[float] = None,
+        temperature: Optional[float] = None,
         seed: Optional[np.uint64] = None,
-        repetition_penalty: Optional[float] = 1.0,
+        repetition_penalty: Optional[float] = None,
         max_time: Optional[float] = None,
         exponential_decay_length_penalty: Optional[
             Union[Tuple[int, float], ExponentialDecayLengthPenalty]
         ] = None,
         stop_sequences: Optional[List[str]] = None,
+        preserve_input_text: bool = False,
     ) -> GeneratedTextResult:
         """Run inference against the model running in TGIS.
 
@@ -235,22 +235,22 @@ class PeftPromptTuningTGIS(ModuleBase):  # pylint: disable=too-many-instance-att
     def run_stream_out(
         self,
         text: str,
-        preserve_input_text: bool = False,
         max_new_tokens: Optional[int] = 20,
         min_new_tokens: Optional[int] = 0,
         truncate_input_tokens: Optional[int] = 0,
         decoding_method: Optional[str] = "GREEDY",
-        top_k: Optional[int] = 0,
-        top_p: Optional[float] = 1.0,
-        typical_p: Optional[float] = 1.0,
-        temperature: Optional[float] = 1.0,
+        top_k: Optional[int] = None,
+        top_p: Optional[float] = None,
+        typical_p: Optional[float] = None,
+        temperature: Optional[float] = None,
         seed: Optional[np.uint64] = None,
-        repetition_penalty: Optional[float] = 1.0,
+        repetition_penalty: Optional[float] = None,
         max_time: Optional[float] = None,
         exponential_decay_length_penalty: Optional[
             Union[Tuple[int, float], ExponentialDecayLengthPenalty]
         ] = None,
         stop_sequences: Optional[List[str]] = None,
+        preserve_input_text: bool = False,
     ) -> Iterable[GeneratedTextStreamResult]:
         """Run output stream inferencing against the model running in TGIS
 

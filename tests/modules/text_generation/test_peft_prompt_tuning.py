@@ -69,12 +69,12 @@ def test_save_log_loss_file(causal_lm_dummy_model):
     """Ensure saving a model saves the log loss file"""
     with tempfile.TemporaryDirectory() as model_dir:
         causal_lm_dummy_model.save(model_dir, save_base_model=False)
-        assert os.path.isfile(
-            os.path.join(
-                model_dir,
-                caikit_nlp.modules.text_generation.peft_prompt_tuning.TRAINING_LOSS_LOG_FILENAME,
-            )
+        file_path = os.path.join(
+            model_dir,
+            caikit_nlp.modules.text_generation.peft_prompt_tuning.TRAINING_LOSS_LOG_FILENAME,
         )
+
+        assert os.path.isfile(file_path)
 
 
 def test_run_model(causal_lm_dummy_model):
@@ -216,7 +216,7 @@ def test_train_model_classification_record(causal_lm_train_kwargs, set_cpu_devic
 
 
 def test_prompt_output_types(causal_lm_train_kwargs):
-    # Try training a model with outpout_model_types set to a list of strings
+    # Try training a model with output_model_types set to a list of strings
     patch_kwargs = {
         "num_epochs": 1,
         "verbalizer": "Tweet text : {{input}} Label : ",
@@ -255,6 +255,19 @@ def test_prompt_output_types(causal_lm_train_kwargs):
         **causal_lm_train_kwargs
     )
     assert model
+
+
+def test_error_empty_stream(causal_lm_train_kwargs):
+    patch_kwargs = {
+        "num_epochs": 1,
+        "verbalizer": "Tweet text : {{input}} Label : ",
+        "train_stream": caikit.core.data_model.DataStream.from_iterable([]),
+    }
+    causal_lm_train_kwargs.update(patch_kwargs)
+    with pytest.raises(ValueError):
+        caikit_nlp.modules.text_generation.PeftPromptTuning.train(
+            **causal_lm_train_kwargs
+        )
 
 
 ### Implementation details
