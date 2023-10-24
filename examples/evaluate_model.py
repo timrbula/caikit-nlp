@@ -104,6 +104,8 @@ def parse_args() -> argparse.Namespace:
         help="The percentage of the dataset that will be extracted as validation set",
         default=0.1,
         type=float
+    )
+    parser.add_argument(
         "--max_new_tokens",
         help="Maximum number of new tokens to be generated",
         type=int,
