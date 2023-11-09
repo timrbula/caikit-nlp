@@ -72,6 +72,7 @@ from ...toolkit.text_generation.model_run_utils import (
     generate_text_func,
     generate_text_func_stream,
 )
+from ...toolkit.trainer_utils import validate_training_data
 from ...toolkit.verbalizer_utils import render_verbalizer
 from .peft_config import TuningType, get_peft_config, resolve_base_model
 
@@ -364,6 +365,13 @@ class PeftPromptTuning(ModuleBase):
             cls,
             torch_dtype,
             verbalizer,
+        )
+
+        # Check if data is within limit allowed for this module and model
+        validate_training_data(
+            train_stream,
+            base_model_name,
+            cls.MODULE_ID,
         )
 
         # Coerce the passed model into a resource; if we have one, this is a noop
@@ -1028,7 +1036,7 @@ class PeftPromptTuning(ModuleBase):
 
         # Below would send all the data and model to
         # configured device and convert them to required dtypes
-        model, optimizer, train_dataloader, lr_scheduler = accelerator.prepare(
+        model, optimizer, new_train_dataloader, lr_scheduler = accelerator.prepare(
             model,
             optimizer,
             train_dataloader,
@@ -1043,7 +1051,7 @@ class PeftPromptTuning(ModuleBase):
             step_loss_log = {}
             model.train()
             total_loss = 0
-            tqdm_loader = tqdm(train_dataloader, disable=silence_progress_bars)
+            tqdm_loader = tqdm(new_train_dataloader, disable=silence_progress_bars)
             for batch in tqdm_loader:
 
                 tqdm_loader.set_description("Epoch: {}".format(epoch))
@@ -1053,12 +1061,15 @@ class PeftPromptTuning(ModuleBase):
                     with accelerator.accumulate(model):
                         outputs = model(**batch)
                         loss = outputs.loss
-                        total_loss += loss.detach().float()
+                        # We are converting loss to float explicitely for later use
+                        # keeping it in tensor form can potentially cause memory issues
+                        loss_float = loss.detach().float().item()
+                        total_loss += loss_float
                         accelerator.backward(loss)
                         optimizer.step()
                         lr_scheduler.step()
                         optimizer.zero_grad()
-                        step_loss_log[step_count] = loss
+                        step_loss_log[step_count] = loss_float
                         step_count += 1
                 except (
                     torch.cuda.OutOfMemoryError  # pylint: disable=catching-non-exception
@@ -1068,7 +1079,7 @@ class PeftPromptTuning(ModuleBase):
                         MemoryError("Not enough memory available for training!"),
                     )
 
-            log.info("<NLP46114010I>", {"loss": float(loss), "epoch": epoch})
+            log.info("<NLP46114010I>", {"loss": loss_float, "epoch": epoch})
 
             for step, loss_val in step_loss_log.items():
 
@@ -1077,7 +1088,7 @@ class PeftPromptTuning(ModuleBase):
                     {
                         "epoch": epoch,
                         "step": step,
-                        "value": float(loss_val),
+                        "value": loss_val,
                         "timestamp": datetime.isoformat(datetime.now()),
                     }
                 )
@@ -1137,7 +1148,6 @@ class PeftPromptTuning(ModuleBase):
                         eval_ppl,
                         eval_epoch_loss,
                     )
-
         return {"loss": training_loss_tracker}
 
     @classmethod
