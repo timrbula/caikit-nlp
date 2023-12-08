@@ -98,8 +98,9 @@ class PeftPromptTuningTGIS(ModuleBase):  # pylint: disable=too-many-instance-att
         if get_config().unload_tgis_prompt_artifacts:
             tgis_backend = getattr(self, "_tgis_backend", None)
             prompt_cache_id = getattr(self, "_prompt_cache_id", None)
-            if tgis_backend and prompt_cache_id:
-                tgis_backend.unload_prompt_artifacts(prompt_cache_id)
+            model_id = getattr(self, "base_model_name", None)
+            if tgis_backend and prompt_cache_id and model_id:
+                tgis_backend.unload_prompt_artifacts(model_id, prompt_cache_id)
 
     @classmethod
     def load(cls, model_path: str, load_backend: BackendBase) -> "PeftPromptTuningTGIS":
@@ -242,13 +243,13 @@ class PeftPromptTuningTGIS(ModuleBase):  # pylint: disable=too-many-instance-att
         top_p: Optional[float] = None,
         typical_p: Optional[float] = None,
         temperature: Optional[float] = None,
-        seed: Optional[np.uint64] = None,
         repetition_penalty: Optional[float] = None,
         max_time: Optional[float] = None,
         exponential_decay_length_penalty: Optional[
             Union[Tuple[int, float], ExponentialDecayLengthPenalty]
         ] = None,
         stop_sequences: Optional[List[str]] = None,
+        seed: Optional[np.uint64] = None,
         preserve_input_text: bool = False,
     ) -> Iterable[GeneratedTextStreamResult]:
         f"""Run output stream inferencing against the model running in TGIS

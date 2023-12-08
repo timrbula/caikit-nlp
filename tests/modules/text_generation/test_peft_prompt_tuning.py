@@ -93,13 +93,17 @@ def test_run_stream_out_model(causal_lm_dummy_model):
         assert isinstance(pred, GeneratedTextStreamResult)
 
 
-def test_verbalizer_rendering(causal_lm_dummy_model):
+def test_verbalizer_rendering(causal_lm_dummy_model, monkeypatch):
     """Ensure that our model renders its verbalizer text correctly before calling tokenizer."""
     # Mock the tokenizer; we want to make sure its inputs are rendered properly
-    causal_lm_dummy_model.tokenizer = mock.Mock(
-        side_effect=RuntimeError("Tokenizer is a mock!"),
-        # Set eos token property to be attribute of tokenizer
-        eos_token="</s>",
+    monkeypatch.setattr(
+        causal_lm_dummy_model,
+        "tokenizer",
+        mock.Mock(
+            side_effect=RuntimeError("Tokenizer is a mock!"),
+            # Set eos token property to be attribute of tokenizer
+            eos_token="</s>",
+        ),
     )
     input_text = "This text doesn't matter"
     causal_lm_dummy_model.verbalizer = " | {{input}} |"
@@ -258,6 +262,19 @@ def test_prompt_output_types(causal_lm_train_kwargs):
     assert model
 
 
+def test_error_empty_stream(causal_lm_train_kwargs):
+    patch_kwargs = {
+        "num_epochs": 1,
+        "verbalizer": "Tweet text : {{input}} Label : ",
+        "train_stream": caikit.core.data_model.DataStream.from_iterable([]),
+    }
+    causal_lm_train_kwargs.update(patch_kwargs)
+    with pytest.raises(ValueError):
+        caikit_nlp.modules.text_generation.PeftPromptTuning.train(
+            **causal_lm_train_kwargs
+        )
+
+
 ### Implementation details
 # These tests can probably be removed and tested directly through .save() once
 # full seq2seq support is completed and verified.
@@ -361,6 +378,16 @@ def test_run_truncate_tokens_0(causal_lm_dummy_model):
         "This text doesn't matter", truncate_input_tokens=0
     )
     assert isinstance(pred, GeneratedTextResult)
+
+
+def test_run_with_preserve_input_text(causal_lm_dummy_model):
+    """Ensure preserve input text removes input
+    from generated output when set to False"""
+    input_text = "This text doesn't matter"
+    pred = causal_lm_dummy_model.run(input_text, preserve_input_text=True)
+    assert input_text in pred.generated_text
+    pred = causal_lm_dummy_model.run(input_text, preserve_input_text=False)
+    assert input_text not in pred.generated_text
 
 
 def test_run_sampling_param_ignored_greedy_decoding(causal_lm_dummy_model):
