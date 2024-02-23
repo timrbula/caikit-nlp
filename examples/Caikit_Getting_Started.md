@@ -1,18 +1,19 @@
-# Caikit NLP Getting Started
+# Caikit NLP Local PEFT Tuning Guide
+
+This is a guide for running this (timrbula org) fork of caitkit-nlp locally for PEFT tuning and evaluation using local models and datasets.
 
 ## Prereqs
 
 - Access to GPU hardware e.g. [Cognitive Compute Cluster](http://ccc.pok.ibm.com:1313/)
+- Clone of `timrbula/caikit-nlp` locally
 
 ## Set up environment
 
-1. Create virtual environment with Python 3.11 and activate it
-2. `git clone https://github.com/timrbula/caikit-nlp.git` and `cd` into it
+1. Navigate to local clone of `timrbula/caikit-nlp`
+2. Create virtual environment with Python 3.11 and activate it
 3. `pip install evaluate`
 4. `pip install rouge_score`
-5. `pip install git+https://github.com/caikit/caikit`
-6. `pip install .`
-7. Switch to `json-file-dataset` branch
+5. `pip install .`
 
 ## Run PEFT tuning
 
