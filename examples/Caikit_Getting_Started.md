@@ -15,6 +15,9 @@ This is a guide for running this (timrbula org) fork of caitkit-nlp locally for 
 4. `pip install rouge_score`
 5. `pip install .`
 
+> [!IMPORTANT]
+> You must be on this branch, `json-file-dataset`, for the commands to work. 
+
 ## Run PEFT tuning
 
 The following command executes MPT against a local model and dataset
@@ -49,6 +52,8 @@ python examples/evaluate_model.py \
 --json_file_path <path_to_peft_data>
 --metrics rouge
 ```
+
+
 
 ## Execute on CCC with GPU
 
