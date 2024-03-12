@@ -16,3 +16,5 @@ jobs:
           owner: caikit-nlp
           base: main
           head: main
+          token: ${{ secrets.PERSONAL_TOKEN }}
+          auto_approve: true
